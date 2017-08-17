@@ -227,6 +227,14 @@ window.onload = function() {
         // - get distance from line to 3rd point (using this for short radius instead of finding ellipse through 3rd point)
         let longRay = new THREE.Ray(points[longAxis[0]]).lookAt(points[longAxis[1]])
         let shortRadius = longRay.distanceToPoint(points[otherPoint])
+        // - get angle between line and x-axis
+        let startPoint = points[longAxis[0]].clone()
+        let endPoint = points[longAxis[1]].clone()
+        if (startPoint.y < endPoint.y) {
+          startPoint = points[longAxis[1]].clone()
+          endPoint = points[longAxis[0]].clone()
+        }
+        let rotation = endPoint.clone().sub(points[longAxis[0]]).angleTo(new THREE.Vector3(1,0,0))
         // - create ellipse
         let centerPoint = longLine.getCenter()
         var curve = new THREE.EllipseCurve(
@@ -234,7 +242,7 @@ window.onload = function() {
           longLine.distance() / 2, shortRadius,           // xRadius, yRadius
           0,  2 * Math.PI,  // aStartAngle, aEndAngle
           false,            // aClockwise
-          0                 // aRotation
+          rotation                 // aRotation
         );
         
         curve.worldPosition = longLine.getCenter()

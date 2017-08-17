@@ -1,5 +1,8 @@
 /* globals dat, AMI*/
 
+var WidgetsHandle = AMI.default.Widgets.Handle;
+var widgets = [];
+let ellipse;
 // Setup renderer
 var container = document.getElementById('container');
 var renderer = new THREE.WebGLRenderer({
@@ -181,6 +184,134 @@ loader
         camera.canvas = canvas;
         camera.update();
         camera.fitBox(2);
+        
+        container.addEventListener('mouseup', function(evt) {
+          // if something hovered, exit
+          for (let widget of widgets) {
+            if (widget.active) {
+              widget.onEnd(evt);
+              return;
+            }
+          }
+        });
+
+        container.addEventListener('mousemove', function(evt) {
+          // if something hovered, exit
+          let cursor = 'default';
+          for (let widget of widgets) {
+            widget.onMove(evt);
+            if (widget.hovered) {
+              cursor = 'pointer';
+            }
+          }
+
+          container.style.cursor = cursor;
+        });
+        
+        container.addEventListener('mousedown', function(evt) {
+          // if something hovered, exit
+          for (let widget of widgets) {
+            if (widget.hovered) {
+              widget.onStart(evt);
+              return;
+            }
+          }
+
+          container.style.cursor = 'default';
+
+          // mouse position
+          let mouse = {
+            x: (event.clientX) / container.offsetWidth * 2 - 1,
+            y: -((event.clientY) / container.offsetHeight)
+              * 2 + 1,
+          };
+
+          // update the raycaster
+          let raycaster = new THREE.Raycaster();
+          raycaster.setFromCamera(mouse, camera);
+          let intersects = raycaster.intersectObject(stackHelper.slice.mesh);
+
+          if (intersects.length <= 0) {
+            return;
+          }
+
+          let widget = new WidgetsHandle(stackHelper.slice.mesh, controls, camera, container);
+          widget.worldPosition = intersects[0].point;
+
+          widgets.push(widget);
+          scene.add(widget);
+          console.log(widgets.length)
+          if (widgets.length >= 3) {
+            // CREATE ELLIPSE
+            // remove old ellipse
+            if (ellipse != null) {
+              scene.remove(ellipse);
+            }
+            // find the long axis
+            // distances:
+            let points = widgets.map(widget => widget.worldPosition)
+            let dist01 = points[0].distanceTo(points[1])
+            let dist12 = points[1].distanceTo(points[2])
+            let dist20 = points[2].distanceTo(points[0])
+            let maxDist = dist01;
+            let longAxis = [0, 1]
+            if (dist12 > maxDist) { 
+              maxDist = dist12;
+              longAxis = [1, 2]; 
+            }
+            if (dist20 > maxDist) { 
+              maxDist = dist20;
+              longAxis = [2, 0]; 
+            }
+            console.log("0,1", dist01)
+            console.log("1,2", dist12)
+            console.log("2,0", dist20)
+            console.log(longAxis)
+            console.log(maxDist)
+            // find get the other point
+            let otherPoint = [0,1,2].filter(index => !longAxis.includes(index))[0]
+            console.log(otherPoint)
+            // draw elipse with long axis that passes through other point
+            // - get line of long axis
+            let longLine = new THREE.Line3(points[longAxis[0]], points[longAxis[1]])
+            // - get distance from line to 3rd point (using this for short radius instead of finding ellipse through 3rd point)
+            let longRay = new THREE.Ray(points[longAxis[0]]).lookAt(points[longAxis[1]])
+            let shortRadius = longRay.distanceToPoint(points[otherPoint])
+            // - get angle between line and x-axis
+            let startPoint = points[longAxis[0]].clone()
+            let endPoint = points[longAxis[1]].clone()
+            if (startPoint.y > endPoint.y) {
+              startPoint = points[longAxis[1]].clone()
+              endPoint = points[longAxis[0]].clone()
+            }
+
+            let vector = endPoint.clone().sub(startPoint)
+            console.log("vector:", vector)
+            let rotation = vector.angleTo(new THREE.Vector3(1,0,0))
+            //if (rotation > Math.PI) { rotation = rotation - Math.PI; }
+            console.log("roation:", rotation)
+            // - create ellipse
+            let centerPoint = longLine.getCenter()
+            var curve = new THREE.EllipseCurve(
+              centerPoint.x,  centerPoint.y,            // ax, aY
+              longLine.distance() / 2, shortRadius,           // xRadius, yRadius
+              0,  2 * Math.PI,  // aStartAngle, aEndAngle
+              false,            // aClockwise
+              rotation                 // aRotation
+            );
+            
+            curve.worldPosition = longLine.getCenter()
+            var path = new THREE.Path( curve.getPoints( 50 ) );
+            var geometry = path.createPointsGeometry( 50 );
+            var material = new THREE.LineBasicMaterial( { color : 0xff0000 } );
+            
+            // Create the final object to add to the scene
+            ellipse = new THREE.Line( geometry, material );
+            // - get center
+
+            scene.add(ellipse)
+          }
+        });
     })
     .catch(function(error) {
         window.console.log('oops... something went wrong...');
