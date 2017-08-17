@@ -186,64 +186,7 @@ loader.load(file)
     camera.canvas = canvas;
     camera.update();
     camera.fitBox(2);
-    
-    container.addEventListener('mouseup', function(evt) {
-      // if something hovered, exit
-      for (let widget of widgets) {
-        if (widget.active) {
-          widget.onEnd(evt);
-          return;
-        }
-      }
-    });
-
-    container.addEventListener('mousemove', function(evt) {
-      // if something hovered, exit
-      let cursor = 'default';
-      for (let widget of widgets) {
-        widget.onMove(evt);
-        if (widget.hovered) {
-          cursor = 'pointer';
-        }
-      }
-
-      container.style.cursor = cursor;
-    });
-    
-    container.addEventListener('mousedown', function(evt) {
-      // if something hovered, exit
-      for (let widget of widgets) {
-        if (widget.hovered) {
-          widget.onStart(evt);
-          return;
-        }
-      }
-
-      container.style.cursor = 'default';
-
-      // mouse position
-      let mouse = {
-        x: (event.clientX) / container.offsetWidth * 2 - 1,
-        y: -((event.clientY) / container.offsetHeight)
-          * 2 + 1,
-      };
-
-      // update the raycaster
-      let raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(mouse, camera);
-      let intersects = raycaster.intersectObject(stackHelper.slice.mesh);
-
-      if (intersects.length <= 0) {
-        return;
-      }
-
-      let widget = new WidgetsHandle(stackHelper.slice.mesh, controls, camera, container);
-      widget.worldPosition = intersects[0].point;
-
-      widgets.push(widget);
-      scene.add(widget);
-      console.log(widgets.length)
-      if (widgets.length >= 3) {
+    let drawEllipse = () => {
       	// CREATE ELLIPSE
         // remove old ellipse
         if (ellipse != null) {
@@ -312,6 +255,68 @@ loader.load(file)
         // - get center
 
         scene.add(ellipse)
+    }
+
+    container.addEventListener('mouseup', function(evt) {
+      // if something hovered, exit
+      for (let widget of widgets) {
+        if (widget.active) {
+          widget.onEnd(evt);
+          return;
+        }
+      }
+    });
+
+    container.addEventListener('mousemove', function(evt) {
+      // if something hovered, exit
+      let cursor = 'default';
+      for (let widget of widgets) {
+        widget.onMove(evt);
+        if (widget.hovered) {
+          cursor = 'pointer';
+          drawEllipse();
+        }
+      }
+
+      container.style.cursor = cursor;
+    });
+    
+    container.addEventListener('mousedown', function(evt) {
+      // if something hovered, exit
+      for (let widget of widgets) {
+        if (widget.hovered) {
+          widget.onStart(evt);
+          return;
+        }
+      }
+
+      container.style.cursor = 'default';
+
+      // mouse position
+      let mouse = {
+        x: (event.clientX) / container.offsetWidth * 2 - 1,
+        y: -((event.clientY) / container.offsetHeight)
+          * 2 + 1,
+      };
+
+      // update the raycaster
+      let raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+      let intersects = raycaster.intersectObject(stackHelper.slice.mesh);
+
+      if (intersects.length <= 0) {
+        return;
+      }
+
+      let widget = new WidgetsHandle(stackHelper.slice.mesh, controls, camera, container);
+      widget.worldPosition = intersects[0].point;
+
+      widgets.push(widget);
+      scene.add(widget);
+      console.log(widgets.length)
+      if (widgets.length >= 3) {
+        drawEllipse()
+
       }
     });
 })
