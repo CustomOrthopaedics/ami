@@ -63,12 +63,12 @@ function init() {
     new THREE.PerspectiveCamera(
       45, threeD.offsetWidth / threeD.offsetHeight,
       1, 10000000);
-  camera.position.x = 150;
-  camera.position.y = 50;
-  camera.position.z = 50;
+  camera.position.x = 0;
+  camera.position.y = 0;
+  camera.position.z = 150;
   // controls
   controls = new ControlsTrackball(camera, threeD);
-  controls.rotateSpeed = 1.4;
+  controls.rotateSpeed = 4.4;
   controls.zoomSpeed = 1.2;
   controls.panSpeed = 0.8;
   controls.staticMoving = true;
@@ -91,7 +91,12 @@ window.onload = function() {
     const stack = series[0]._stack[0];
     loader.free();
     let stackHelper = new HelpersStack(stack);
+    // update plane direction...
+    let dirLPS = new THREE.Vector3(0,0,1).normalize();
 
+    // update slice and THEN its border
+    stackHelper.slice.planeDirection = dirLPS;
+ 
     scene.add(stackHelper);
 
     threeD.addEventListener('mouseup', function(evt) {
@@ -176,6 +181,59 @@ window.onload = function() {
 
       widgets.push(widget);
       scene.add(widget);
+      console.log(widgets.length)
+      if (widgets.length >= 3) {
+        // find the long axis
+        // distances:
+        let points = widgets.map(widget => widget.worldPosition)
+        let dist01 = points[0].distanceTo(points[1])
+        let dist12 = points[1].distanceTo(points[2])
+        let dist20 = points[2].distanceTo(points[0])
+        let maxDist = dist01;
+        let longAxis = [0, 1]
+        if (dist12 > maxDist) { 
+          maxDist = dist12;
+          longAxis = [1, 2]; 
+        }
+        if (dist20 > maxDist) { 
+          maxDist = dist20;
+          longAxis = [2, 0]; 
+        }
+        console.log("0,1", dist01)
+        console.log("1,2", dist12)
+        console.log("2,0", dist20)
+        console.log(longAxis)
+        console.log(maxDist)
+        // find get the other point
+        let otherPoint = [0,1,2].filter(index => !longAxis.includes(index))[0]
+        console.log(otherPoint)
+        // draw elipse with long axis that passes through other point
+        // - get line of long axis
+        let longLine = new THREE.Line3(points[longAxis[0]], points[longAxis[1]])
+        // - get distance from line to 3rd point (using this for short radius instead of finding ellipse through 3rd point)
+        let longRay = new THREE.Ray(points[longAxis[0]]).lookAt(points[longAxis[1]])
+        let shortRadius = longRay.distanceToPoint(points[otherPoint])
+        // - create ellipse
+        let centerPoint = longLine.getCenter()
+        var curve = new THREE.EllipseCurve(
+          0,  centerPoint.y,            // ax, aY
+          longLine.distance() / 2, shortRadius,           // xRadius, yRadius
+          0,  2 * Math.PI,  // aStartAngle, aEndAngle
+          false,            // aClockwise
+          0                 // aRotation
+        );
+        
+        curve.worldPosition = longLine.getCenter()
+        var path = new THREE.Path( curve.getPoints( 50 ) );
+        var geometry = path.createPointsGeometry( 50 );
+        var material = new THREE.LineBasicMaterial( { color : 0xff0000 } );
+        
+        // Create the final object to add to the scene
+        var ellipse = new THREE.Line( geometry, material );
+        // - get center
+
+        scene.add(ellipse)
+      }
     });
 
     function onWindowResize() {
