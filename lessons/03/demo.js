@@ -134,7 +134,8 @@ animate();
 
 // Setup loader
 var loader = new AMI.VolumeLoader(container);
-var file = 'https://cdn.rawgit.com/FNNDSC/data/master/nifti/adi_brain/adi_brain.nii.gz';
+//var file = 'https://cdn.rawgit.com/FNNDSC/data/master/nifti/adi_brain/adi_brain.nii.gz';
+let file = '/lessons/03/CR1'
 
 loader
     .load(file)
@@ -193,6 +194,9 @@ loader
         // find the long axis
         // distances:
         let points = widgets.map(widget => widget.worldPosition)
+        if (points.length < 3) {
+          return
+        } 
         let dist01 = points[0].distanceTo(points[1])
         let dist12 = points[1].distanceTo(points[2])
         let dist20 = points[2].distanceTo(points[0])
@@ -206,20 +210,20 @@ loader
           maxDist = dist20;
           longAxis = [2, 0]; 
         }
-        console.log("0,1", dist01)
-        console.log("1,2", dist12)
-        console.log("2,0", dist20)
-        console.log(longAxis)
-        console.log(maxDist)
+        //  console.log("0,1", dist01)
+        //  console.log("1,2", dist12)
+        //  console.log("2,0", dist20)
+        //  console.log("long axis", longAxis)
+        //  console.log("max dist", maxDist)
         // find get the other point
         let otherPoint = [0,1,2].filter(index => !longAxis.includes(index))[0]
-        console.log(otherPoint)
+        // console.log(otherPoint)
         // draw elipse with long axis that passes through other point
         // - get line of long axis
         let longLine = new THREE.Line3(points[longAxis[0]], points[longAxis[1]])
         // - get distance from line to 3rd point (using this for short radius instead of finding ellipse through 3rd point)
         let longRay = new THREE.Ray(points[longAxis[0]]).lookAt(points[longAxis[1]])
-        let shortRadius = longRay.distanceToPoint(points[otherPoint])
+        let yRadius = longRay.distanceToPoint(points[otherPoint])
         // - get angle between line and x-axis
         let startPoint = points[longAxis[0]].clone()
         let endPoint = points[longAxis[1]].clone()
@@ -229,15 +233,14 @@ loader
         }
 
         let vector = endPoint.clone().sub(startPoint)
-        console.log("vector:", vector)
+        //console.log("vector:", vector)
         let rotation = vector.angleTo(new THREE.Vector3(1,0,0))
-        //if (rotation > Math.PI) { rotation = rotation - Math.PI; }
-        console.log("roation:", rotation)
+        //console.log("roation:", rotation)
         // - create ellipse
         let centerPoint = longLine.getCenter()
         var curve = new THREE.EllipseCurve(
           centerPoint.x,  centerPoint.y,            // ax, aY
-          longLine.distance() / 2, shortRadius,           // xRadius, yRadius
+          longLine.distance() / 2, yRadius,           // xRadius, yRadius
           0,  2 * Math.PI,  // aStartAngle, aEndAngle
           false,            // aClockwise
           rotation                 // aRotation
@@ -256,7 +259,6 @@ loader
     }
 
     container.addEventListener('mouseup', function(evt) {
-      // if something hovered, exit
       for (let widget of widgets) {
         if (widget.active) {
           widget.onEnd(evt);
@@ -266,12 +268,13 @@ loader
     });
 
     container.addEventListener('mousemove', function(evt) {
-      // if something hovered, exit
       let cursor = 'default';
       for (let widget of widgets) {
         widget.onMove(evt);
         if (widget.hovered) {
           cursor = 'pointer';
+        }
+        if (widget.dragged) {
           drawEllipse();
         }
       }
