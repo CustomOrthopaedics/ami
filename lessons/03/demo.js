@@ -3,6 +3,7 @@
 var WidgetsHandle = AMI.default.Widgets.Handle;
 var widgets = [];
 let ellipse;
+let pelvicTiltLine;
 // Setup renderer
 var container = document.getElementById('container');
 var renderer = new THREE.WebGLRenderer({
@@ -135,7 +136,7 @@ animate();
 // Setup loader
 var loader = new AMI.VolumeLoader(container);
 //var file = 'https://cdn.rawgit.com/FNNDSC/data/master/nifti/adi_brain/adi_brain.nii.gz';
-let file = '/lessons/03/CR1'
+let file = '/lessons/03/CR2'
 
 loader
     .load(file)
@@ -258,6 +259,35 @@ loader
         scene.add(ellipse)
     }
 
+    let drawPelvicTiltLine = (startPoint, endPoint) => {
+      if (pelvicTiltLine != null) {
+        scene.remove(pelvicTiltLine);
+      }
+      let geometry = new THREE.Geometry();
+      geometry.vertices.push(
+        startPoint,
+        endPoint
+      );
+      let material = new THREE.LineBasicMaterial( { color : 0xff0000 } );
+      pelvicTiltLine = new THREE.LineSegments( geometry, material );
+      scene.add(pelvicTiltLine)
+    }
+
+    let getPelvicTilt = () => {
+      let points = widgets.map(widget => widget.worldPosition)
+      if (points.length < 3) {
+        return
+      } 
+      let midpoint = points[1].clone().add(points[2]).divideScalar(2)
+      let middleVector = midpoint.clone().sub(points[0])
+      let pelvicTilt = THREE.Math.radToDeg(middleVector.angleTo(new THREE.Vector3(0,-1,0)))
+      // FOR DEBUGGING
+      console.log("pelvic tilt:", pelvicTilt)
+      drawPelvicTiltLine(points[0], midpoint)
+      // END FOR DEBUGGING
+      return pelvicTilt
+    }
+    
     container.addEventListener('mouseup', function(evt) {
       for (let widget of widgets) {
         if (widget.active) {
@@ -275,7 +305,8 @@ loader
           cursor = 'pointer';
         }
         if (widget.dragged) {
-          drawEllipse();
+          //drawEllipse();
+          getPelvicTilt() 
         }
       }
 
@@ -316,8 +347,8 @@ loader
       scene.add(widget);
       console.log(widgets.length)
       if (widgets.length >= 3) {
-        drawEllipse()
-
+        //drawEllipse()
+        getPelvicTilt() 
       }
     });
 })
