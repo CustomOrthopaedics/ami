@@ -183,6 +183,9 @@ const femurShaftRange = range(stageStart, stageEnd)
 stageStart = stageEnd
 stageEnd += 2
 const teardropRange = range(stageStart, stageEnd)
+stageStart = stageEnd
+stageEnd += 3
+const appRange = range(stageStart, stageEnd)
 
 let maxWidgetCount = stageEnd
 
@@ -199,6 +202,9 @@ function doApTemplating (widgetNumber) {
   }
   else if (teardropRange.includes(widgetNumber)) {
     getTeardropLine(widgets.slice(teardropRange[0], last(teardropRange) + 1))
+  }
+  else if (appRange.includes(widgetNumber)) {
+    console.log('APP (ASIS & Symphysis) templating', widgetNumber)
   }
 }
 
