@@ -4,6 +4,15 @@ var WidgetsHandle = AMI.default.Widgets.Handle;
 var widgets = [];
 let ellipse;
 let pelvicTiltLine;
+let femurShaftLine;
+let femurNeckLine;
+let teardropLine;
+let lines = {
+  'pelvicTilt': pelvicTiltLine,
+  'femurShaft': femurShaftLine,
+  'femurNeck': femurNeckLine,
+  'teardrop': teardropLine,
+}
 // Setup renderer
 var container = document.getElementById('container');
 var renderer = new THREE.WebGLRenderer({
@@ -13,6 +22,9 @@ renderer.setSize(container.offsetWidth, container.offsetHeight);
 renderer.setClearColor(0x353535, 1);
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
+
+// utility function
+let range = (start, end) => Array.from({length: end - start}, (v, i) => i + start);
 
 // Setup scene
 var scene = new THREE.Scene();
@@ -146,13 +158,47 @@ animate();
 
 function loadXray(plane) {
   if (plane === "AP") {
-    loadFile('/lessons/03/CR1', drawEllipse)
+    maxWidgetCount = stageEnd
+    loadFile('/lessons/03/CR1', doApTemplating)
   }
   else if (plane === "lateral") {
+    maxWidgetCount = 3
     loadFile('/lessons/03/CR2', getPelvicTilt)
   }
   else {
     // do nothing
+  }
+}
+
+// Define the templating stages
+let stageStart = 0
+let stageEnd = 3
+const ellipseRange = range(stageStart, stageEnd)
+stageStart = stageEnd
+stageEnd += 1
+const femurHeadRange  = range(stageStart, stageEnd)
+stageStart = stageEnd
+stageEnd += 2
+const femurShaftRange = range(stageStart, stageEnd)
+stageStart = stageEnd
+stageEnd += 2
+const teardropRange = range(stageStart, stageEnd)
+
+let maxWidgetCount = stageEnd
+
+function doApTemplating (widgetNumber) {
+  let last = arr => arr[arr.length-1];
+  if (ellipseRange.includes(widgetNumber)) {
+    drawEllipse()
+  }
+  else if (femurHeadRange.includes(widgetNumber)) {
+    console.log('Femur head templating', widgetNumber)
+  }
+  else if (femurShaftRange.includes(widgetNumber)) {
+    getFemurShaft(widgets.slice(femurShaftRange[0], last(femurShaftRange) + 1))
+  }
+  else if (teardropRange.includes(widgetNumber)) {
+    getTeardropLine(widgets.slice(teardropRange[0], last(teardropRange) + 1))
   }
 }
 
@@ -229,9 +275,9 @@ function drawEllipse () {
     scene.add(ellipse)
 }
 
-function drawPelvicTiltLine(startPoint, endPoint) {
-  if (pelvicTiltLine != null) {
-    scene.remove(pelvicTiltLine);
+function drawLineSegment(startPoint, endPoint, linesObject, lineName) {
+  if (linesObject[lineName] != null) {
+    scene.remove(linesObject[lineName]);
   }
   let geometry = new THREE.Geometry();
   geometry.vertices.push(
@@ -239,8 +285,48 @@ function drawPelvicTiltLine(startPoint, endPoint) {
     endPoint
   );
   let material = new THREE.LineBasicMaterial( { color : 0xff0000 } );
-  pelvicTiltLine = new THREE.LineSegments( geometry, material );
-  scene.add(pelvicTiltLine)
+  linesObject[lineName] = new THREE.LineSegments( geometry, material );
+  scene.add(linesObject[lineName])
+}
+
+function drawTeardropLine(startPoint, endPoint) {
+  drawLineSegment(startPoint, endPoint, lines, 'teardrop')
+}
+
+function getTeardropLine(shaftWidgets) {
+  let points = shaftWidgets.map(widget => widget.worldPosition)
+  if (points.length < 2) {
+    return
+  } 
+  let shaftVector = points[1].clone().sub(points[0])
+  let tilt = THREE.Math.radToDeg(shaftVector.angleTo(new THREE.Vector3(0,-1,0)))
+  // FOR DEBUGGING
+  console.log("teardrop tilt:", tilt)
+  drawTeardropLine(points[0], points[1])
+  // END FOR DEBUGGING
+  return tilt
+}
+
+function drawFemurShaftLine(startPoint, endPoint) {
+  drawLineSegment(startPoint, endPoint, lines, 'femurShaft')
+}
+
+function getFemurShaft(shaftWidgets) {
+  let points = shaftWidgets.map(widget => widget.worldPosition)
+  if (points.length < 2) {
+    return
+  } 
+  let shaftVector = points[1].clone().sub(points[0])
+  let femurTilt = THREE.Math.radToDeg(shaftVector.angleTo(new THREE.Vector3(0,-1,0)))
+  // FOR DEBUGGING
+  console.log("femur tilt:", femurTilt)
+  drawFemurShaftLine(points[0], points[1])
+  // END FOR DEBUGGING
+  return femurTilt
+}
+
+function drawPelvicTiltLine(startPoint, endPoint) {
+  drawLineSegment(startPoint, endPoint, lines, 'pelvicTilt')
 }
 
 function getPelvicTilt() {
@@ -278,8 +364,10 @@ function loadFile(file, templatingFunction){
         if (ellipse != null) {
           scene.remove(ellipse);
         }
-        if (pelvicTiltLine != null) {
-          scene.remove(pelvicTiltLine);
+        for (let line of Object.values(lines)) {
+          if (line != null) {
+            scene.remove(line);
+          }
         }
       }
       // merge files into clean series/stack/frame structure
@@ -343,13 +431,14 @@ function loadFile(file, templatingFunction){
       }
       let mouseMoveListener = function(evt) {
         let cursor = 'default';
-        for (let widget of widgets) {
+        for (let i = 0; i < widgets.length; ++i) {
+          let widget = widgets[i]
           widget.onMove(evt);
           if (widget.hovered) {
             cursor = 'pointer';
           }
           if (widget.dragged) {
-            templatingFunction()
+            templatingFunction(i)
           }
         }
 
@@ -364,6 +453,9 @@ function loadFile(file, templatingFunction){
           }
         }
 
+        if (widgets.length >= maxWidgetCount) {
+          return;
+        }
         container.style.cursor = 'default';
 
         // mouse position
@@ -387,10 +479,7 @@ function loadFile(file, templatingFunction){
 
         widgets.push(widget);
         scene.add(widget);
-        console.log(widgets.length)
-        if (widgets.length >= 3) {
-          templatingFunction()
-        }
+        templatingFunction(widgets.length - 1)
       }
       if (mouseEventListeners != null) {
         for (let evt in mouseEventListeners) {
