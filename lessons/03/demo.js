@@ -220,6 +220,9 @@ function drawEllipse () {
     if (points.length < 3) {
       return
     } 
+
+    drawIntersectionPoints(points[0], points[1], points[2])
+
     let dist01 = points[0].distanceTo(points[1])
     let dist12 = points[1].distanceTo(points[2])
     let dist20 = points[2].distanceTo(points[0])
@@ -349,6 +352,120 @@ function getPelvicTilt() {
   // END FOR DEBUGGING
   return pelvicTilt
 }
+
+
+
+
+
+// Load STL
+let implantMesh
+// Add lighting
+scene.add(new THREE.AmbientLight(0xaaaaaa));
+
+// Load STL model
+var loaderSTL = new THREE.STLLoader();
+loaderSTL.load('/lessons/03/cup-508-11-56f-ot.stl',
+  function(geometry) {
+    var material = new THREE.MeshPhongMaterial(
+      {color: 0xF44336, specular: 0x111111, shininess: 200});
+    implantMesh = new THREE.Mesh(geometry, material);
+    // to LPS space
+    var RASToLPS = new THREE.Matrix4();
+    RASToLPS.set(-1, 0, 0, 0,
+                  0, -1, 0, 0,
+                  0, 0, 1, 0,
+                  0, 0, 0, 1);
+    implantMesh.applyMatrix(RASToLPS);
+    scene.add(implantMesh);
+    implantMesh.visible = false
+});
+
+
+
+
+
+
+
+// Get STL intersection with plane
+
+var pointsOfIntersection = new THREE.Geometry();
+
+var a = new THREE.Vector3(),
+  b = new THREE.Vector3(),
+  c = new THREE.Vector3();
+var planePointA = new THREE.Vector3(),
+  planePointB = new THREE.Vector3(),
+  planePointC = new THREE.Vector3();
+var lineAB = new THREE.Line3(),
+  lineBC = new THREE.Line3(),
+  lineCA = new THREE.Line3();
+let cupLines;
+
+var pointOfIntersection = new THREE.Vector3();
+
+function drawIntersectionPoints(planePointA, planePointB, planePointC) {
+
+  pointsOfIntersection = new THREE.Geometry();
+  console.log('before')
+  console.log(planePointC)
+  //implantMesh.geometry.translate(-planePointC.x, -planePointC.y, -planePointC.z)
+  implantMesh.position.copy(planePointC)
+  implantMesh.updateMatrix();
+  var mathPlane = new THREE.Plane();
+  mathPlane.setFromCoplanarPoints(planePointA, planePointB, planePointC);
+  //let meshGeom = new THREE.Geometry().fromBufferGeometry(implantMesh.geometry);
+  //meshGeom.faces.forEach(function(face) {
+  let positions = implantMesh.geometry.attributes.position.array
+  for (let i = 0; i < implantMesh.geometry.attributes.position.count * 3; ) {
+    a.set(positions[i], positions[i + 1], positions[i + 2])
+    if (i < 9) {
+      console.log(a)
+    }
+    i += 3
+    b.set(positions[i], positions[i + 1], positions[i + 2])
+    i += 3
+    c.set(positions[i], positions[i + 1], positions[i + 2])
+    i += 3
+    a.applyMatrix4(implantMesh.matrix)
+    if (i <= 9) {
+      console.log(a)
+      console.log("the matrix")
+      console.log(implantMesh.matrix)
+    }
+    b.applyMatrix4(implantMesh.matrix)
+    c.applyMatrix4(implantMesh.matrix)
+    lineAB = new THREE.Line3(a, b);
+    lineBC = new THREE.Line3(b, c);
+    lineCA = new THREE.Line3(c, a);
+    setPointOfIntersection(lineAB, mathPlane);
+    setPointOfIntersection(lineBC, mathPlane);
+    setPointOfIntersection(lineCA, mathPlane);
+  }
+
+  var pointsMaterial = new THREE.PointsMaterial({
+    size: 0.01,
+    color: 0xffff00
+  });
+  var points = new THREE.Points(pointsOfIntersection, pointsMaterial);
+  //scene.add(points);
+
+  if (cupLines != null) {
+    scene.remove(cupLines)
+  }
+  cupLines = new THREE.LineSegments(pointsOfIntersection, new THREE.LineBasicMaterial({
+    color: 0x66ff66
+  }));
+  scene.add(cupLines);
+}
+
+function setPointOfIntersection(line, plane) {
+  pointOfIntersection = plane.intersectLine(line);
+  if (pointOfIntersection) {
+    pointsOfIntersection.vertices.push(pointOfIntersection.clone());
+  };
+}
+
+
 
 let stackHelper;
 let mouseEventListeners;
