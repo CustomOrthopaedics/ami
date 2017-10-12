@@ -221,8 +221,6 @@ function drawEllipse () {
       return
     } 
 
-    drawIntersectionPoints(points[0], points[1], points[2])
-
     let dist01 = points[0].distanceTo(points[1])
     let dist12 = points[1].distanceTo(points[2])
     let dist20 = points[2].distanceTo(points[0])
@@ -282,6 +280,15 @@ function drawEllipse () {
     // - get center
 
     scene.add(ellipse)
+    // from Lewenick, anteversion is inverse sin of short diameter over long diameter
+    //let anteversion = Math.asin( (yRadius * 2) / longLine.distance() )
+    // Keep rotation from going upside down
+    if (rotation < Math.PI / 2) {
+      rotation += Math.PI
+    }
+    let anteversion = 0
+    setCupOrientation(centerPoint, rotation /*inclination*/, anteversion)
+    drawImplantIntersection(points[0], points[1], points[2])
 }
 
 function drawLineSegment(startPoint, endPoint, linesObject, lineName) {
@@ -362,19 +369,19 @@ let implantMesh
 // Add lighting
 scene.add(new THREE.AmbientLight(0xaaaaaa));
 
+var RASToLPS = new THREE.Matrix4();
+RASToLPS.set(-1, 0, 0, 0,
+              0, -1, 0, 0,
+              0, 0, 1, 0,
+              0, 0, 0, 1);
+
 // Load STL model
 var loaderSTL = new THREE.STLLoader();
 loaderSTL.load('/lessons/03/cup-508-11-56f-ot.stl',
   function(geometry) {
-    var material = new THREE.MeshPhongMaterial(
-      {color: 0xF44336, specular: 0x111111, shininess: 200});
+    var material = new THREE.MeshBasicMaterial()
     implantMesh = new THREE.Mesh(geometry, material);
     // to LPS space
-    var RASToLPS = new THREE.Matrix4();
-    RASToLPS.set(-1, 0, 0, 0,
-                  0, -1, 0, 0,
-                  0, 0, 1, 0,
-                  0, 0, 0, 1);
     implantMesh.applyMatrix(RASToLPS);
     scene.add(implantMesh);
     implantMesh.visible = false
@@ -385,69 +392,45 @@ loaderSTL.load('/lessons/03/cup-508-11-56f-ot.stl',
 
 
 
+function setCupOrientation(position, inclination, anteversion) {
+  implantMesh.matrix.copy(new THREE.Matrix4())
+  let cupOrientation = RASToLPS.clone()
+  //let cupOrientation = new THREE.Matrix4();
+  var eul = new THREE.Euler( anteversion, 0, inclination, 'XYZ' );
+  cupOrientation.makeRotationFromEuler(eul)
+  cupOrientation.setPosition(position)
+  implantMesh.applyMatrix(cupOrientation)
+  implantMesh.updateMatrix();
+}
 
 // Get STL intersection with plane
-
-var pointsOfIntersection = new THREE.Geometry();
-
-var a = new THREE.Vector3(),
-  b = new THREE.Vector3(),
-  c = new THREE.Vector3();
-var planePointA = new THREE.Vector3(),
-  planePointB = new THREE.Vector3(),
-  planePointC = new THREE.Vector3();
-var lineAB = new THREE.Line3(),
-  lineBC = new THREE.Line3(),
-  lineCA = new THREE.Line3();
+var pointsOfIntersection;
 let cupLines;
 
-var pointOfIntersection = new THREE.Vector3();
-
-function drawIntersectionPoints(planePointA, planePointB, planePointC) {
-
+function drawImplantIntersection(planePointA, planePointB, planePointC) {
   pointsOfIntersection = new THREE.Geometry();
-  console.log('before')
-  console.log(planePointC)
-  //implantMesh.geometry.translate(-planePointC.x, -planePointC.y, -planePointC.z)
-  implantMesh.position.copy(planePointC)
-  implantMesh.updateMatrix();
+
   var mathPlane = new THREE.Plane();
   mathPlane.setFromCoplanarPoints(planePointA, planePointB, planePointC);
-  //let meshGeom = new THREE.Geometry().fromBufferGeometry(implantMesh.geometry);
-  //meshGeom.faces.forEach(function(face) {
-  let positions = implantMesh.geometry.attributes.position.array
-  for (let i = 0; i < implantMesh.geometry.attributes.position.count * 3; ) {
-    a.set(positions[i], positions[i + 1], positions[i + 2])
-    if (i < 9) {
-      console.log(a)
-    }
-    i += 3
-    b.set(positions[i], positions[i + 1], positions[i + 2])
-    i += 3
-    c.set(positions[i], positions[i + 1], positions[i + 2])
-    i += 3
+  var a = new THREE.Vector3(),
+    b = new THREE.Vector3(),
+    c = new THREE.Vector3();
+  let positionAttribute = implantMesh.geometry.attributes.position
+  let positions = positionAttribute.array
+  for (let i = 0; i < implantMesh.geometry.attributes.position.count; i += 3) {
+    a.fromBufferAttribute( positionAttribute, i );
+    b.fromBufferAttribute( positionAttribute, i + 1);
+    c.fromBufferAttribute( positionAttribute, i + 2);
     a.applyMatrix4(implantMesh.matrix)
-    if (i <= 9) {
-      console.log(a)
-      console.log("the matrix")
-      console.log(implantMesh.matrix)
-    }
     b.applyMatrix4(implantMesh.matrix)
     c.applyMatrix4(implantMesh.matrix)
-    lineAB = new THREE.Line3(a, b);
-    lineBC = new THREE.Line3(b, c);
-    lineCA = new THREE.Line3(c, a);
+    let lineAB = new THREE.Line3(a, b);
+    let lineBC = new THREE.Line3(b, c);
+    let lineCA = new THREE.Line3(c, a);
     setPointOfIntersection(lineAB, mathPlane);
     setPointOfIntersection(lineBC, mathPlane);
     setPointOfIntersection(lineCA, mathPlane);
   }
-
-  var pointsMaterial = new THREE.PointsMaterial({
-    size: 0.01,
-    color: 0xffff00
-  });
-  var points = new THREE.Points(pointsOfIntersection, pointsMaterial);
-  //scene.add(points);
 
   if (cupLines != null) {
     scene.remove(cupLines)
@@ -459,7 +442,7 @@ function drawIntersectionPoints(planePointA, planePointB, planePointC) {
 }
 
 function setPointOfIntersection(line, plane) {
-  pointOfIntersection = plane.intersectLine(line);
+  let pointOfIntersection = plane.intersectLine(line);
   if (pointOfIntersection) {
     pointsOfIntersection.vertices.push(pointOfIntersection.clone());
   };
