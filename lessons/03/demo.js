@@ -189,10 +189,19 @@ const appRange = range(stageStart, stageEnd)
 
 let maxWidgetCount = stageEnd
 
+let teardropVector;
+let majorAxisVector;
+
 function doApTemplating (widgetNumber) {
   let last = arr => arr[arr.length-1];
+  let inclinationChanged = false
   if (ellipseRange.includes(widgetNumber)) {
-    drawEllipse()
+    let oldVector
+    if (majorAxisVector != null) {
+      oldVector = majorAxisVector.clone()
+    } 
+    majorAxisVector = drawEllipse()
+    if (oldVector != null && !oldVector.equals(majorAxisVector)) { inclinationChanged = true; }
   }
   else if (femurHeadRange.includes(widgetNumber)) {
     console.log('Femur head templating', widgetNumber)
@@ -201,10 +210,20 @@ function doApTemplating (widgetNumber) {
     getFemurShaft(widgets.slice(femurShaftRange[0], last(femurShaftRange) + 1))
   }
   else if (teardropRange.includes(widgetNumber)) {
-    getTeardropLine(widgets.slice(teardropRange[0], last(teardropRange) + 1))
+    let oldVector
+    if (teardropVector != null) {
+      oldVector = teardropVector.clone()
+    }
+    teardropVector = getTeardropLine(widgets.slice(teardropRange[0], last(teardropRange) + 1))
+    if (oldVector != null && !oldVector.equals(teardropVector) || 
+        oldVector == null && teardropVector != null) { inclinationChanged = true; }
   }
   else if (appRange.includes(widgetNumber)) {
     console.log('APP (ASIS & Symphysis) templating', widgetNumber)
+  }
+  if (inclinationChanged) {
+    let inclination = calculateInclination(majorAxisVector, teardropVector)
+    drawInclination(inclination)
   }
 }
 
@@ -289,6 +308,48 @@ function drawEllipse () {
     let anteversion = 0
     setCupOrientation(centerPoint, rotation /*inclination*/, anteversion)
     drawImplantIntersection(points[0], points[1], points[2])
+
+    //let angleToVertical = vector.angleTo(new THREE.Vector3(0,1,0))
+    return vector // THREE.Math.radToDeg(angleToVertical)
+}
+
+function calculateInclination(majorAxisVector, teardropVector) {
+  let rotation = Math.PI / 2
+  if (teardropVector.x > 0) {
+    rotation = -rotation
+  }
+  let perp = teardropVector.clone()
+  perp.applyAxisAngle(new THREE.Vector3(0,0,-1), rotation)
+  
+  let inclination = THREE.Math.radToDeg(majorAxisVector.angleTo(perp))
+  return inclination
+}
+
+function drawPelvicTilt(pelvicTilt) {
+  let id = 'pelvicTiltDisplay'
+  let text = "Pelvic tilt: " + pelvicTilt.toFixed(1) + " degrees";
+  drawText(text, id, 100)
+}
+function drawInclination(inclination) {
+  let id = 'inclinationDisplay'
+  let text = "Inclination: " + inclination.toFixed(1) + " degrees";
+  drawText(text, id, 60)
+}
+function drawText(text, id, yPos) {
+  let text2 = document.getElementById(id)
+  if (text2 == null) {
+    text2 = document.createElement('div');
+    text2.style.position = 'absolute';
+    text2.id = id;
+    //text2.style.zIndex = 1;    // if you still don't see the label, try uncommenting this
+    text2.style.width = 260;
+    text2.style.height = 25;
+    text2.style.backgroundColor = "rgba(0,0,0,.5)";
+    text2.style.top = yPos + 'px';
+    text2.style.left = 100 + 'px';
+  }
+  text2.innerHTML = text;
+  document.body.appendChild(text2);
 }
 
 function drawLineSegment(startPoint, endPoint, linesObject, lineName) {
@@ -320,7 +381,7 @@ function getTeardropLine(shaftWidgets) {
   console.log("teardrop tilt:", tilt)
   drawTeardropLine(points[0], points[1])
   // END FOR DEBUGGING
-  return tilt
+  return shaftVector
 }
 
 function drawFemurShaftLine(startPoint, endPoint) {
@@ -357,6 +418,7 @@ function getPelvicTilt() {
   console.log("pelvic tilt:", pelvicTilt)
   drawPelvicTiltLine(points[0], midpoint)
   // END FOR DEBUGGING
+  drawPelvicTilt(pelvicTilt)
   return pelvicTilt
 }
 
