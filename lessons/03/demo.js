@@ -191,6 +191,7 @@ let maxWidgetCount = stageEnd
 
 let teardropVector;
 let majorAxisVector;
+let femurShaftAngle = 0;
 
 function doApTemplating (widgetNumber) {
   let last = arr => arr[arr.length-1];
@@ -207,7 +208,7 @@ function doApTemplating (widgetNumber) {
     console.log('Femur head templating', widgetNumber)
   }
   else if (femurShaftRange.includes(widgetNumber)) {
-    getFemurShaft(widgets.slice(femurShaftRange[0], last(femurShaftRange) + 1))
+    femurShaftAngle = getFemurShaft(widgets.slice(femurShaftRange[0], last(femurShaftRange) + 1))
   }
   else if (teardropRange.includes(widgetNumber)) {
     let oldVector
@@ -221,7 +222,7 @@ function doApTemplating (widgetNumber) {
   else if (appRange.includes(widgetNumber)) {
     console.log('APP (ASIS & Symphysis) templating', widgetNumber)
   }
-  if (inclinationChanged) {
+  if (teardropVector != null && inclinationChanged) {
     let inclination = calculateInclination(majorAxisVector, teardropVector)
     drawInclination(inclination)
   }
@@ -307,7 +308,10 @@ function drawEllipse () {
     }
     let anteversion = 0
     setCupOrientation(centerPoint, rotation /*inclination*/, anteversion)
-    drawImplantIntersection(points[0], points[1], points[2])
+    cupLines = drawImplantIntersection(points[0], points[1], points[2], cupMesh, cupLines)
+    linerLines = drawImplantIntersection(points[0], points[1], points[2], linerMesh, linerLines)
+    headLines = drawImplantIntersection(points[0], points[1], points[2], headMesh, headLines)
+    stemLines = drawImplantIntersection(points[0], points[1], points[2], stemMesh, stemLines)
 
     //let angleToVertical = vector.angleTo(new THREE.Vector3(0,1,0))
     return vector // THREE.Math.radToDeg(angleToVertical)
@@ -427,7 +431,10 @@ function getPelvicTilt() {
 
 
 // Load STL
-let implantMesh
+let cupMesh
+let linerMesh
+let headMesh
+let stemMesh
 // Add lighting
 scene.add(new THREE.AmbientLight(0xaaaaaa));
 
@@ -442,34 +449,81 @@ var loaderSTL = new THREE.STLLoader();
 loaderSTL.load('/lessons/03/cup-508-11-56f-ot.stl',
   function(geometry) {
     var material = new THREE.MeshBasicMaterial()
-    implantMesh = new THREE.Mesh(geometry, material);
+    cupMesh = new THREE.Mesh(geometry, material);
     // to LPS space
-    implantMesh.applyMatrix(RASToLPS);
-    scene.add(implantMesh);
-    implantMesh.visible = false
+    cupMesh.applyMatrix(RASToLPS);
+    scene.add(cupMesh);
+    cupMesh.visible = false
+});
+
+// Load STL model
+loaderSTL.load('/lessons/03/Liner-623-00-28f.stl',
+  function(geometry) {
+    var material = new THREE.MeshBasicMaterial()
+    linerMesh = new THREE.Mesh(geometry, material);
+    // to LPS space
+    linerMesh.applyMatrix(RASToLPS);
+    scene.add(linerMesh);
+    linerMesh.visible = false
+});
+
+// Load STL model
+loaderSTL.load('/lessons/03/Head-6260-9-128.stl',
+  function(geometry) {
+    var material = new THREE.MeshBasicMaterial()
+    headMesh = new THREE.Mesh(geometry, material);
+    // to LPS space
+    headMesh.applyMatrix(RASToLPS);
+    scene.add(headMesh);
+    headMesh.visible = false
+});
+
+// Load STL model
+loaderSTL.load('/lessons/03/6020_0130.stl',
+  function(geometry) {
+    var material = new THREE.MeshBasicMaterial()
+    stemMesh = new THREE.Mesh(geometry, material);
+    // to LPS space
+    stemMesh.applyMatrix(RASToLPS);
+    scene.add(stemMesh);
+    stemMesh.visible = false
 });
 
 
 
 
-
-
 function setCupOrientation(position, inclination, anteversion) {
-  implantMesh.matrix.copy(new THREE.Matrix4())
+  cupMesh.matrix.copy(new THREE.Matrix4())
+  linerMesh.matrix.copy(new THREE.Matrix4())
   let cupOrientation = RASToLPS.clone()
   //let cupOrientation = new THREE.Matrix4();
   var eul = new THREE.Euler( anteversion, 0, inclination, 'XYZ' );
   cupOrientation.makeRotationFromEuler(eul)
   cupOrientation.setPosition(position)
-  implantMesh.applyMatrix(cupOrientation)
-  implantMesh.updateMatrix();
+  cupMesh.applyMatrix(cupOrientation)
+  cupMesh.updateMatrix();
+  linerMesh.applyMatrix(cupOrientation)
+  linerMesh.updateMatrix();
+
+  // Set stem and head orientation
+  headMesh.matrix.copy(new THREE.Matrix4())
+  stemMesh.matrix.copy(new THREE.Matrix4())
+  let stemOrientation = RASToLPS.clone()
+  //let stemRotation = (new THREE.Vector3(0,-1,0)).angleTo(shaftVector)
+  eul = new THREE.Euler( 0 * Math.PI / 2, -Math.PI / 2, THREE.Math.degToRad(132 + femurShaftAngle), 'ZYX' );
+  stemOrientation.makeRotationFromEuler(eul)
+  stemOrientation.setPosition(position)
+  headMesh.applyMatrix(stemOrientation)
+  headMesh.updateMatrix();
+  stemMesh.applyMatrix(stemOrientation)
+  stemMesh.updateMatrix();
 }
 
 // Get STL intersection with plane
 var pointsOfIntersection;
-let cupLines;
+let cupLines, linerLines, headLines, stemLines;
 
-function drawImplantIntersection(planePointA, planePointB, planePointC) {
+function drawImplantIntersection(planePointA, planePointB, planePointC, mesh, outline) {
   pointsOfIntersection = new THREE.Geometry();
 
   var mathPlane = new THREE.Plane();
@@ -477,15 +531,15 @@ function drawImplantIntersection(planePointA, planePointB, planePointC) {
   var a = new THREE.Vector3(),
     b = new THREE.Vector3(),
     c = new THREE.Vector3();
-  let positionAttribute = implantMesh.geometry.attributes.position
+  let positionAttribute = mesh.geometry.attributes.position
   let positions = positionAttribute.array
-  for (let i = 0; i < implantMesh.geometry.attributes.position.count; i += 3) {
+  for (let i = 0; i < mesh.geometry.attributes.position.count; i += 3) {
     a.fromBufferAttribute( positionAttribute, i );
     b.fromBufferAttribute( positionAttribute, i + 1);
     c.fromBufferAttribute( positionAttribute, i + 2);
-    a.applyMatrix4(implantMesh.matrix)
-    b.applyMatrix4(implantMesh.matrix)
-    c.applyMatrix4(implantMesh.matrix)
+    a.applyMatrix4(mesh.matrix)
+    b.applyMatrix4(mesh.matrix)
+    c.applyMatrix4(mesh.matrix)
     let lineAB = new THREE.Line3(a, b);
     let lineBC = new THREE.Line3(b, c);
     let lineCA = new THREE.Line3(c, a);
@@ -494,13 +548,14 @@ function drawImplantIntersection(planePointA, planePointB, planePointC) {
     setPointOfIntersection(lineCA, mathPlane);
   }
 
-  if (cupLines != null) {
-    scene.remove(cupLines)
+  if (outline != null) {
+    scene.remove(outline)
   }
-  cupLines = new THREE.LineSegments(pointsOfIntersection, new THREE.LineBasicMaterial({
+  outline = new THREE.LineSegments(pointsOfIntersection, new THREE.LineBasicMaterial({
     color: 0x66ff66
   }));
-  scene.add(cupLines);
+  scene.add(outline);
+  return outline
 }
 
 function setPointOfIntersection(line, plane) {
