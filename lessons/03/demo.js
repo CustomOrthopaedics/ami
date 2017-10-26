@@ -60,6 +60,11 @@ function onWindowResize() {
 window.addEventListener('resize', onWindowResize, false);
 
 var guiDat
+
+var implantUtils = {
+  dynamicNeckLength: false, 
+}
+
 /**
  * Build GUI
  */
@@ -140,6 +145,10 @@ function gui(stackHelper) {
         .step(1)
         .listen();
   stackFolder.open();
+
+  var implantFolder = guiDat.addFolder('Implant');
+  implantFolder.add(implantUtils, 'dynamicNeckLength');
+  implantFolder.open()
 }
 
 /**
@@ -490,8 +499,10 @@ loaderSTL.load('/lessons/03/Head-6260-9-128.stl',
 });
 
 function loadStem(fileName) {
+  let shouldDraw = false
   if (stemMesh != null) {
     scene.remove(stemMesh)
+    shouldDraw = true
   }
   // Load STL model
   loaderSTL.load(fileName,
@@ -502,8 +513,13 @@ function loadStem(fileName) {
       stemMesh.applyMatrix(RASToLPS);
       scene.add(stemMesh);
       stemMesh.visible = false
+      if(shouldDraw) { 
+        setFemoralOrientation(femurHeadPos, femurShaftPoints)
+        drawFemoralOutlines()
+      }
   });
 }
+loadStem('/lessons/03/6020_0130.stl')
 
 function setCupOrientation(position, inclination, anteversion) {
   cupMesh.matrix.copy(new THREE.Matrix4())
@@ -519,6 +535,7 @@ function setCupOrientation(position, inclination, anteversion) {
   linerMesh.updateMatrix();
 }
 
+let neckLength = 0
 
 function setFemoralOrientation(position, shaftPoints) {
   if (shaftPoints == null || shaftPoints.length < 2) { return; }
@@ -546,14 +563,32 @@ function setFemoralOrientation(position, shaftPoints) {
   stemMesh.applyMatrix(stemOrientation)
   stemMesh.updateMatrix();
   let ray = new THREE.Ray(inferiorPoint, shaftVector.normalize())
-  let neckLength = ray.distanceToPoint(femurHeadPos)
-  console.log("Neck length:", neckLength)
-  if (neckLength > 30 && neckLength < 31) {
-    loadStem('/lessons/03/6020_0130.stl')
-  } 
-  else if (neckLength > 60 && neckLength < 61) {
-    loadStem('/lessons/03/6021_0537.stl')
+  const oldNeckLength = neckLength
+  neckLength = ray.distanceToPoint(femurHeadPos)
+  if (implantUtils.dynamicNeckLength) {
+    if (neckLength < 44 && oldNeckLength >= 44) {
+      loadStem('/lessons/03/6020_0130.stl')
+    }
+    else if ((neckLength >= 44 && neckLength < 48) &&
+          (oldNeckLength < 44 || oldNeckLength >= 48)) {
+      loadStem('/lessons/03/6020_0335.stl')
+    }
+    else if (neckLength >= 48 && oldNeckLength < 48) {
+      loadStem('/lessons/03/6020_0537.stl')
+    }
   }
+  else if (oldNeckLength <= 0) {
+    if (neckLength < 44) {
+      loadStem('/lessons/03/6020_0130.stl')
+    }
+    else if (neckLength >= 44 && neckLength < 48) {
+      loadStem('/lessons/03/6020_0335.stl')
+    }
+    else if (neckLength >= 48) {
+      loadStem('/lessons/03/6020_0537.stl')
+    } 
+  }
+  console.log("Neck length:", neckLength)
 }
 
 // Get STL intersection with plane
