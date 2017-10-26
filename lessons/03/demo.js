@@ -187,11 +187,12 @@ stageStart = stageEnd
 stageEnd += 3
 const appRange = range(stageStart, stageEnd)
 
+let femurHeadPos;
 let maxWidgetCount = stageEnd
+let femurShaftPoints 
 
 let teardropVector;
 let majorAxisVector;
-let femurShaftAngle = 0;
 
 function doApTemplating (widgetNumber) {
   let last = arr => arr[arr.length-1];
@@ -202,13 +203,21 @@ function doApTemplating (widgetNumber) {
       oldVector = majorAxisVector.clone()
     } 
     majorAxisVector = drawEllipse()
+    drawAcetabularOutlines()
     if (oldVector != null && !oldVector.equals(majorAxisVector)) { inclinationChanged = true; }
   }
   else if (femurHeadRange.includes(widgetNumber)) {
+    femurHeadPos = widgets[widgetNumber].worldPosition
     console.log('Femur head templating', widgetNumber)
+    drawEllipse()
+    drawAcetabularOutlines()
+    setFemoralOrientation(femurHeadPos, femurShaftPoints)
+    drawFemoralOutlines()
   }
   else if (femurShaftRange.includes(widgetNumber)) {
-    femurShaftAngle = getFemurShaft(widgets.slice(femurShaftRange[0], last(femurShaftRange) + 1))
+    femurShaftPoints = getFemurShaft(widgets.slice(femurShaftRange[0], last(femurShaftRange) + 1))
+    setFemoralOrientation(femurHeadPos, femurShaftPoints)
+    drawFemoralOutlines()
   }
   else if (teardropRange.includes(widgetNumber)) {
     let oldVector
@@ -307,16 +316,21 @@ function drawEllipse () {
       rotation += Math.PI
     }
     let anteversion = 0
-    setCupOrientation(centerPoint, rotation /*inclination*/, anteversion)
-    cupLines = drawImplantIntersection(points[0], points[1], points[2], cupMesh, cupLines)
-    linerLines = drawImplantIntersection(points[0], points[1], points[2], linerMesh, linerLines)
-    headLines = drawImplantIntersection(points[0], points[1], points[2], headMesh, headLines)
-    stemLines = drawImplantIntersection(points[0], points[1], points[2], stemMesh, stemLines)
+    let cupPosition = femurHeadPos ? femurHeadPos : centerPoint
+    setCupOrientation(cupPosition, rotation /*inclination*/, anteversion)
 
     //let angleToVertical = vector.angleTo(new THREE.Vector3(0,1,0))
     return vector // THREE.Math.radToDeg(angleToVertical)
 }
 
+function drawAcetabularOutlines() {
+  cupLines = drawImplantIntersection(0, cupMesh, cupLines)
+  linerLines = drawImplantIntersection(0, linerMesh, linerLines)
+}
+function drawFemoralOutlines() {
+  headLines = drawImplantIntersection(0, headMesh, headLines)
+  stemLines = drawImplantIntersection(0, stemMesh, stemLines)
+}
 function calculateInclination(majorAxisVector, teardropVector) {
   let rotation = Math.PI / 2
   if (teardropVector.x > 0) {
@@ -397,13 +411,10 @@ function getFemurShaft(shaftWidgets) {
   if (points.length < 2) {
     return
   } 
-  let shaftVector = points[1].clone().sub(points[0])
-  let femurTilt = THREE.Math.radToDeg(shaftVector.angleTo(new THREE.Vector3(0,-1,0)))
   // FOR DEBUGGING
-  console.log("femur tilt:", femurTilt)
   drawFemurShaftLine(points[0], points[1])
   // END FOR DEBUGGING
-  return femurTilt
+  return points
 }
 
 function drawPelvicTiltLine(startPoint, endPoint) {
@@ -478,19 +489,21 @@ loaderSTL.load('/lessons/03/Head-6260-9-128.stl',
     headMesh.visible = false
 });
 
-// Load STL model
-loaderSTL.load('/lessons/03/6020_0130.stl',
-  function(geometry) {
-    var material = new THREE.MeshBasicMaterial()
-    stemMesh = new THREE.Mesh(geometry, material);
-    // to LPS space
-    stemMesh.applyMatrix(RASToLPS);
-    scene.add(stemMesh);
-    stemMesh.visible = false
-});
-
-
-
+function loadStem(fileName) {
+  if (stemMesh != null) {
+    scene.remove(stemMesh)
+  }
+  // Load STL model
+  loaderSTL.load(fileName,
+    function(geometry) {
+      var material = new THREE.MeshBasicMaterial()
+      stemMesh = new THREE.Mesh(geometry, material);
+      // to LPS space
+      stemMesh.applyMatrix(RASToLPS);
+      scene.add(stemMesh);
+      stemMesh.visible = false
+  });
+}
 
 function setCupOrientation(position, inclination, anteversion) {
   cupMesh.matrix.copy(new THREE.Matrix4())
@@ -504,30 +517,55 @@ function setCupOrientation(position, inclination, anteversion) {
   cupMesh.updateMatrix();
   linerMesh.applyMatrix(cupOrientation)
   linerMesh.updateMatrix();
+}
 
+
+function setFemoralOrientation(position, shaftPoints) {
+  if (shaftPoints == null || shaftPoints.length < 2) { return; }
   // Set stem and head orientation
   headMesh.matrix.copy(new THREE.Matrix4())
   stemMesh.matrix.copy(new THREE.Matrix4())
   let stemOrientation = RASToLPS.clone()
-  //let stemRotation = (new THREE.Vector3(0,-1,0)).angleTo(shaftVector)
-  eul = new THREE.Euler( 0 * Math.PI / 2, -Math.PI / 2, THREE.Math.degToRad(132 + femurShaftAngle), 'ZYX' );
+  let superiorPoint, inferiorPoint
+  if (shaftPoints[0].y < shaftPoints[1].y) {
+    [superiorPoint, inferiorPoint] = shaftPoints
+  }
+  else {
+    [superiorPoint, inferiorPoint] = [shaftPoints[1], shaftPoints[0]]
+  }
+  const shaftVector = superiorPoint.clone().sub(inferiorPoint)
+  let femurShaftAngle = THREE.Math.radToDeg(shaftVector.angleTo(new THREE.Vector3(0,-1,0)))
+  if (superiorPoint.x < inferiorPoint.x) {
+    femurShaftAngle = -femurShaftAngle
+  }
+  const eul = new THREE.Euler( 0 * Math.PI / 2, -Math.PI / 2, THREE.Math.degToRad(132 + femurShaftAngle), 'ZYX' );
   stemOrientation.makeRotationFromEuler(eul)
   stemOrientation.setPosition(position)
   headMesh.applyMatrix(stemOrientation)
   headMesh.updateMatrix();
   stemMesh.applyMatrix(stemOrientation)
   stemMesh.updateMatrix();
+  let ray = new THREE.Ray(inferiorPoint, shaftVector.normalize())
+  let neckLength = ray.distanceToPoint(femurHeadPos)
+  console.log("Neck length:", neckLength)
+  if (neckLength > 30 && neckLength < 31) {
+    loadStem('/lessons/03/6020_0130.stl')
+  } 
+  else if (neckLength > 60 && neckLength < 61) {
+    loadStem('/lessons/03/6021_0537.stl')
+  }
 }
 
 // Get STL intersection with plane
 var pointsOfIntersection;
 let cupLines, linerLines, headLines, stemLines;
 
-function drawImplantIntersection(planePointA, planePointB, planePointC, mesh, outline) {
+function drawImplantIntersection(zPos, mesh, outline) {
   pointsOfIntersection = new THREE.Geometry();
 
   var mathPlane = new THREE.Plane();
-  mathPlane.setFromCoplanarPoints(planePointA, planePointB, planePointC);
+
+  mathPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, zPos))
   var a = new THREE.Vector3(),
     b = new THREE.Vector3(),
     c = new THREE.Vector3();
