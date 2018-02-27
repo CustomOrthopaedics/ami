@@ -1,6 +1,7 @@
 /* globals dat, AMI*/
 
-var WidgetsHandle = AMI.default.Widgets.Handle;
+var LoadersVolume = AMI.VolumeLoader;
+import WidgetsHandle from 'base/widgets/widgets.handle';
 var widgets = [];
 let ellipse;
 let pelvicTiltLine;
@@ -168,11 +169,11 @@ animate();
 function loadXray(plane) {
   if (plane === "AP") {
     maxWidgetCount = stageEnd
-    loadFile('/lessons/03/CR1', doApTemplating)
+    loadFile('/CR1', doApTemplating)
   }
   else if (plane === "lateral") {
     maxWidgetCount = 3
-    loadFile('/lessons/03/CR2', getPelvicTilt)
+    loadFile('/CR2', getPelvicTilt)
   }
   else {
     // do nothing
@@ -466,7 +467,7 @@ RASToLPS.set(-1, 0, 0, 0,
 
 // Load STL model
 var loaderSTL = new THREE.STLLoader();
-loaderSTL.load('/lessons/03/cup-508-11-56f-ot.stl',
+loaderSTL.load('/cup-508-11-56f-ot.stl',
   function(geometry) {
     var material = new THREE.MeshBasicMaterial()
     cupMesh = new THREE.Mesh(geometry, material);
@@ -477,7 +478,7 @@ loaderSTL.load('/lessons/03/cup-508-11-56f-ot.stl',
 });
 
 // Load STL model
-loaderSTL.load('/lessons/03/Liner-623-00-28f.stl',
+loaderSTL.load('/Liner-623-00-28f.stl',
   function(geometry) {
     var material = new THREE.MeshBasicMaterial()
     linerMesh = new THREE.Mesh(geometry, material);
@@ -488,7 +489,7 @@ loaderSTL.load('/lessons/03/Liner-623-00-28f.stl',
 });
 
 // Load STL model
-loaderSTL.load('/lessons/03/Head-6260-9-128.stl',
+loaderSTL.load('/Head-6260-9-128.stl',
   function(geometry) {
     var material = new THREE.MeshBasicMaterial()
     headMesh = new THREE.Mesh(geometry, material);
@@ -519,7 +520,7 @@ function loadStem(fileName) {
       }
   });
 }
-loadStem('/lessons/03/6020_0130.stl')
+loadStem('/6020_0130.stl')
 
 function setCupOrientation(position, inclination, anteversion) {
   cupMesh.matrix.copy(new THREE.Matrix4())
@@ -567,25 +568,25 @@ function setFemoralOrientation(position, shaftPoints) {
   neckLength = ray.distanceToPoint(femurHeadPos)
   if (implantUtils.dynamicNeckLength) {
     if (neckLength < 44 && oldNeckLength >= 44) {
-      loadStem('/lessons/03/6020_0130.stl')
+      loadStem('/6020_0130.stl')
     }
     else if ((neckLength >= 44 && neckLength < 48) &&
           (oldNeckLength < 44 || oldNeckLength >= 48)) {
-      loadStem('/lessons/03/6020_0335.stl')
+      loadStem('/6020_0335.stl')
     }
     else if (neckLength >= 48 && oldNeckLength < 48) {
-      loadStem('/lessons/03/6020_0537.stl')
+      loadStem('/6020_0537.stl')
     }
   }
   else if (oldNeckLength <= 0) {
     if (neckLength < 44) {
-      loadStem('/lessons/03/6020_0130.stl')
+      loadStem('/6020_0130.stl')
     }
     else if (neckLength >= 44 && neckLength < 48) {
-      loadStem('/lessons/03/6020_0335.stl')
+      loadStem('/6020_0335.stl')
     }
     else if (neckLength >= 48) {
-      loadStem('/lessons/03/6020_0537.stl')
+      loadStem('/6020_0537.stl')
     } 
   }
   console.log("Neck length:", neckLength)
@@ -672,7 +673,7 @@ function loadFile(file, templatingFunction){
       loader.free();
       loader = null;
       // be carefull that series and target stack exist!
-      stackHelper = new HelpersStack(stack);
+      stackHelper = new AMI.StackHelper(stack);
       // stackHelper.orientation = 2;
       // stackHelper.index = 56;
 
